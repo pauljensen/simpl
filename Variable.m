@@ -44,12 +44,40 @@ classdef Variable
             tf = isequal(v1.id,v2.id);
         end
         
+        function ordr = order(obj)
+            ordr = ones(size(obj));
+        end
+        
         function new = plus(a,b)
             new = LQSum([LQTerm(a) LQTerm(b)]);
         end
         
+        function new = times(a,b)
+            if isa(a,'Variable')
+                new = times(LQTerm(a),b);
+            else
+                new = times(a,LQTerm(b));
+            end
+        end
+        
+        function new = mtimes(a,b)
+            new = times(a,b);
+        end
+        
+        function new = and(a,b)
+            new = Junction('&',{a,b});
+        end
+        
+        function new = or(a,b)
+            new = Junction('|',{a,b});
+        end
+        
         function str = toString(obj)
             str = obj.id;
+        end
+        
+        function disp(obj)
+            defaultDisplay(obj);
         end
     end
     

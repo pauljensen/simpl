@@ -30,5 +30,9 @@ classdef LQSum
             strs = arrayfun(@toString,obj.terms,'Uniform',false);
             str = strjoin(strs,' + ');
         end
+        
+        function disp(obj)
+            fprintf(' LQSum\n\n    %s\n\n',toString(obj));
+        end
     end
 end

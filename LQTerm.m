@@ -6,86 +6,82 @@ classdef LQTerm
     end
     
     methods
-        function obj = LQTerm(varargin)
+        function obj = LQTerm(term)
             if nargin == 0
                 return
             end
             
-            % shortcut case
-            if length(varargin) == 1 && isa(varargin{1},'LQTerm')
-                obj = varargin{1};
-                return
-            end
-            
-            obj.c = 1;
-            for i = 1:length(varargin)
-                arg = varargin{i};
-                if isempty(arg)
-                    error('SIMPL:LQTerm:empty', ...
-                          'cannot create LQTerm from empty term');
-                elseif isnumeric(arg)
-                    obj.c = obj.c * arg;
-                elseif isa(arg,'Variable')
-                    if isempty(obj.v1)
-                        obj.v1 = arg;
-                    elseif isempty(obj.v2)
-                        obj.v2 = arg;
+            [m,n] = size(term);
+            obj(m,n) = LQTerm;
+            for j = 1:n
+                for i = 1:m
+                    if isa(term,'LQTerm')
+                        obj(i,j) = term(i,j);
+                    elseif isa(term,'numeric')
+                        obj(i,j).c = term(i,j);
+                    elseif isa(term,'Variable')
+                        obj(i,j).c = 1;
+                        obj(i,j).v1 = term(i,j);
                     else
-                        error('SIMPL:LQTerm:nonlinear', ...
-                              'cannot construct nonlinear LQTerm');
+                        error('SIMPL:LQTerm:noconvert', ...
+                              ['cannot create LQTerm from ',class(term)]);
                     end
-                elseif isa(arg,'LQTerm')
-                    if order(obj) + order(arg) > 2
-                        error('SIMPL:LQTerm:nonlinear', ...
-                              'cannot construct nonlinear LQTerm');
-                    else
-                        obj.c = obj.c * arg.c;
-                        if ~isempty(arg.v1)
-                            if isempty(obj.v1)
-                                obj.v1 = arg.v1;
-                            else
-                                obj.v2 = arg.v1;
-                            end
-                        end
-                        if ~isempty(arg.v2)
-                            obj.v2 = arg.v2;
-                        end
-                    end
-                else
-                    error('SIMPL:LQTerm:noconvert', ...
-                          ['invalid object of type ' class(arg)]);
                 end
             end
         end
         
         function tf = isConstant(obj)
-            tf = isempty(obj.v1) && isempty(obj.v2);
+            f = @(x) isempty(x.v1) && isempty(x.v2);
+            tf = vectorize(f,obj,@false);
         end
         
         function tf = isLinear(obj)
-            tf = isempty(obj.v2);
+            f = @(x) ~isempty(x.v1) && isempty(x.v2);
+            tf = vectorize(f,obj,@false);
         end
         
         function tf = isQuadratic(obj)
-            tf = ~isempty(obj.v2);
+            f = @(x) ~isempty(x.v2);
+            tf = vectorize(f,obj,@false);
         end
         
         function ordr = order(obj)
-            if isConstant(obj)
-                ordr = 0;
-            elseif isLinear(obj)
-                ordr = 1;
-            elseif isQuadratic(obj)
-                ordr = 2;
+            function o = f(x)
+                if isConstant(x)
+                    o = 0;
+                elseif isLinear(x)
+                    o = 1;
+                elseif isQuadratic(x)
+                    o = 2;
+                end
             end
+            ordr = vectorize(@f,obj);
         end
         
-        function new = times(a,b)
-            new = LQTerm(a,b);
+        function new = times(A,B)
+            function y = aux(a,b)
+                [a,b] = ordered(LQTerm(a),LQTerm(b));
+                y = LQTerm(a);
+                y.c = y.c * b.c;
+                if order(a) + order(b) > 2
+                    error('SIMPL:LQTerm:nonlinear', ...
+                          'cannot construct nonlinear LQTerm');
+                end
+                if isLinear(b)
+                    y.v2 = b.v1;
+                end
+            end
+            new = binaryVectorize(@aux,A,B,@LQTerm);
         end
         
-        function new = plus(a,b)
-            new = LQSum([LQTerm(a) LQTerm(b)]);
+        function new = mtimes(a,b)
+            % temporary fix
+            new = times(a,b);
+        end
+        
+        function new = plus(A,B)
+            f = @(a,b) LQSum([LQTerm(a) LQTerm(b)]);
+            new = binaryVectorize(f,A,B,@LQSum);
         end
         
         function str = toString(obj)
@@ -114,7 +110,7 @@ classdef LQTerm
         end
         
         function disp(obj)
-            fprintf(' LQTerm\n\n    %s\n\n',toString(obj));
+            defaultDisplay(obj);
         end
     end
 end
